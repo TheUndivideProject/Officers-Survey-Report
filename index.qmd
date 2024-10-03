@@ -1,0 +1,256 @@
+---
+title: "Officers Survey Report"
+author: "Graziella"
+date: "02 July 2024"
+format: pdf
+jupyther: python3
+---
+
+## Abstract
+This report is part of the project "Building efficiency in Philanthropy"
+
+## Introduction
+This is a report of the online survey that will help us answer the question of whether corporate/big philanthropy officers have confidence in their giving systems. It aimed at understanding community-based environmental and climate justice organizations' experiences with donors, corporations, and finance organizations. The source of the data are samples pulled from panel made up of CBO's, nonprofits and org leaders. It consisted of seven questions: 
+
+1. Please state your exact title.
+2. What is your industry sector?
+3. Do you believe that the current funding processes of corporate and philanthropic giving officers are efficient?
+4. Do you think the current process for distributing funding earmarked for social justice topics is transparent and reliable?
+5. Do you believe that the current funding and reporting processes of corporate and philanthropic giving reflect the experiences of the communities they hope to reach?
+6. Would you be interested in establishing more transparent relationships with community groups and finance organizations?
+7. To ensure engagement, please select 'no' as your answer selection (not further considered here. All participants selected 'no' as an answer)
+
+## Initial data cleaning and exploration
+The cleaning steps include renaming and excluding blank columns, excluding blank rows, title casing, etc.
+```{python}
+#| echo: true
+#| code-fold: true
+
+# Import libraries
+import pandas as pd
+import seaborn as sns
+import seaborn.objects as so
+import matplotlib.pyplot as plt
+import numpy as np
+import warnings
+warnings.simplefilter("ignore", category=FutureWarning)
+
+# import raw dataset
+data = pd.read_csv('./officers_survey_result.csv', index_col = False)
+
+# insert proper column names
+col_names = ['session_id', 'publish_id', 'collector', 'language', 'start', 'end', 'status', 'progress', 'duration_sec', 
+             'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'aid', 'score', 'Unnamed: 18', 'Unnamed: 19', 'Unnamed: 20',
+             'Unnamed: 21', 'Unnamed: 22', 'source', 'Unnamed: 24', 'help_answer', 'Unnamed: 26', 'Unnamed: 27',
+             'assumptions', 'Unnamed: 29', 'Unnamed: 30', 'limitations']
+data.columns = col_names
+
+# drop columns that do not add meaning to analysis
+col_to_remove = ['publish_id', 'collector', 'language', 'status', 'progress', 'help_answer', 'assumptions', 
+                 'limitations', 'score', 'source', 'aid', 'start', 'end']
+data = data.drop(col_to_remove, axis = 1)
+
+# drop "Unnamed" columns
+data = data.drop(data.filter(regex='Unnamed').columns, axis=1)
+
+# exclude first 2 lines that do not contain survey responses
+data = data.drop([0,1])
+
+# reset index
+data = data.reset_index(drop = True)
+
+# saving cleaned df
+data.to_csv('officers_survey_result_cleaned.csv', index=False)
+```
+
+There are 7 questions (q1 to q7) with 12 recordings each. The question 7 will not be considered in further analysis.
+```{python}
+#| echo: true
+#| code-fold: true
+df = pd.read_csv('./officers_survey_result_cleaned.csv', index_col = False)
+df= df.drop(['duration_sec','q7'], axis = 1) 
+df.head()
+```
+
+```{python}
+#| echo: true
+#| code-fold: true
+df.info()
+```
+
+Exploring the first question ("Please state your exact title"), it is noticeable that there are 10 unique titles. The Director position was the only one repeated.
+```{python}
+#| echo: true
+#| code-fold: true
+df['q1'].value_counts()
+```
+
+Most responders belong to the Education industry.
+
+```{python}
+#| echo: true
+#| code-fold: true
+ax = sns.countplot(y='q2', data=df, order=df['q2'].value_counts().index)
+ax.set(xlabel='', ylabel='', xticks=[], 
+        title='Number of responders by industry sector', frame_on=False)
+ax.bar_label(ax.containers[0])
+plt.show()
+```
+
+It is possible to see that the majority of responders are interested in establishing a more transparent relationship with the community and finance organizations (Q6). On the opposite side, most participants believe that current funding and reporting processes of corporate and philanthropic giving do not reflect the experiences of the communities they hope to reach (Q5). Only 3 responders think that the current process for distributing funding is transparent and reliable (Q4).
+
+```{python}
+#| echo: true
+#| code-fold: true
+def create_subplots(df, columns, titles):
+    fig, axes = plt.subplots(4, 1, figsize=(7, 14))
+    
+    for ax, column, title in zip(axes.flatten(), columns, titles):
+        plot = sns.countplot(df, x=column, ax=ax, order=order, palette=palette)
+        plot.tick_params(length=0)
+        plot.set(xlabel='', ylabel='', yticks=[], title=column, frame_on=True)
+        plot.set_title(title, fontsize=15, pad= 10, loc='center', weight='bold')
+        
+        for container in plot.containers:
+            labels = [int(v.get_height()) if v.get_height() > 0 
+                                          else '' for v in container]
+            plot.bar_label(container, labels=labels, label_type='center')
+    
+    plt.tight_layout()
+    plt.show()
+
+palette = {'No': 'red', 'Yes': 'green', 'Not Sure': 'orange'}
+order = ['Yes', 'No', 'Not Sure']
+titles = ['Q3 - Do you believe that the current funding processes of \n corporate and philanthropic giving officers are efficient?',
+          'Q4 - Do you think the current process for distributing funding \n earmarked for social justice topics is transparent and reliable?',
+          'Q5 - Do you believe that the current funding and reporting processes \n of corporate and philanthropic giving reflect the \n experiences of the communities they hope to reach?',
+          'Q6 - Would you be interested in establishing more transparent \n relationships with community groups and finance organizations?']
+columns = ['q3','q4','q5','q6']
+
+create_subplots(df, columns, titles)
+```
+
+Another way to display the above plots is by taking the proportion of yes, no and not sure from the total of answers for each question.
+
+```{python}
+#| echo: true
+#| code-fold: true
+# Creating df with count of all answers
+all_answers = []
+
+for i in range(3,7):
+    row_name = {'count':f'Q{i}'}       
+    df_answer = pd.DataFrame(df[f'q{i}'].value_counts()).T.rename(index=row_name)    
+    all_answers.append(df_answer)  
+    
+df_all_answers = pd.concat(all_answers) 
+
+# Proportion plot
+fig, ax = plt.subplots(figsize=(7, 10))
+
+df_all_answers.plot(kind='barh', stacked=True, ax=ax, color=palette)
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+ax.set(xlabel='', ylabel='', xticks=[], frame_on=False)
+ax.set_title('Proportion of answers to questions 3 to 6', fontsize=15, pad= 0, 
+loc='center', weight='bold')
+
+for container in ax.containers:
+        labels = [int(v.get_width()) if v.get_width() > 0 
+                                    else '' for v in container]
+        ax.bar_label(container, labels=labels, label_type='center')
+
+plt.show()
+```
+
+We can see in the pie chart below, summing answers for questions 3 to 6, that around 44% of answers were "Yes".
+
+```{python}
+#| echo: true
+#| code-fold: true
+# Overall proportion of answers: Pie chart
+labels = 'Yes', 'Not Sure', 'No'
+sizes = df_all_answers.sum()
+
+fig, ax = plt.subplots()
+ax.pie(sizes, labels=labels, autopct ='%1.1f%%',
+       colors=['green', 'orange', 'red'])
+ax.set_title('Overall proportion of answers to questions 3 to 6')
+plt.show()
+```
+
+Below is the breakdown of how responders, aggregated by industry sector, replied the questions 3 to 6. People belonging to same industry sector seem to rarely fully agree on the answers provided, with few exceptions.
+
+```{python}
+#| echo: true
+#| code-fold: true
+# Creating pivot tables to be plotted
+def pivot_df(col_columns, col_rows='q2', df=df):
+    """Function to create pivoted tables of Industry and Questions"""
+    return df.groupby([col_rows, col_columns]).size().reset_index().pivot(columns=col_columns, index=col_rows, values=0).fillna('0').astype(int)
+
+df_q2_q3 = pivot_df('q3')
+df_q2_q4 = pivot_df('q4')
+df_q2_q5 = pivot_df('q5')
+df_q2_q6 = pivot_df('q6')
+
+def hor_stacked_plot(df, title, ax):
+    """Horizontal stacked barplots of answers by industry to each question"""   
+    # sorting df
+    df = df.loc[df.sum(axis=1).sort_values(ascending=True).index]
+    
+    # plot
+    df.plot(kind='barh', stacked=True, ax=ax, color=palette)
+    ax.legend(loc=0)
+    ax.set(xlabel='', ylabel='', xticks=[])
+    ax.set_title(title, fontsize=15, pad= 10, loc='center', weight='bold')
+    
+    # Add bar labels for all containers, excluding zero values
+    for container in ax.containers:
+        labels = [int(v.get_width()) if v.get_width() > 0 
+                                     else '' for v in container]
+        ax.bar_label(container, labels=labels, label_type='center')
+
+# Plotting figures
+fig, axs = plt.subplots(4, 1, figsize=(7, 14))
+
+hor_stacked_plot(df_q2_q3, titles[0], ax = axs[0])
+hor_stacked_plot(df_q2_q4, titles[1], axs[1])
+hor_stacked_plot(df_q2_q5, titles[2], axs[2])
+hor_stacked_plot(df_q2_q6, titles[3], axs[3])
+
+plt.tight_layout()
+plt.show()
+
+```
+
+Finally, an alternative way to visualize answers is by spliting each answer by the industry sector. This way we can see how each industry contributed to the answers. As expected, education plays an important role since most responders are from this industry.
+
+
+```{python}
+#| echo: true
+#| code-fold: true
+# Create stacked barplots of what each industry replied to each quesiton
+def vert_stacked_plot(df, title, ax): 
+    """Vertical stacked bar plots of answers by industry to each question"""
+    # plot
+    df.plot.bar(stacked=True, ax=ax, rot = 0) 
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax.set(xlabel='', ylabel='', yticks=[])
+    ax.set_title(title, fontsize=15, pad= 10, loc='center', weight='bold')  
+
+    # Add bar labels for all containers
+    for container in ax.containers:
+        labels = [int(v.get_height()) if v.get_height() > 0 
+                                      else '' for v in container] 
+        ax.bar_label(container, labels=labels, label_type='center')
+
+fig, axs = plt.subplots(4, 1, figsize=(7, 14))
+
+vert_stacked_plot(df_q2_q3.T, titles[0], ax = axs[0])
+vert_stacked_plot(df_q2_q4.T, titles[1], axs[1])
+vert_stacked_plot(df_q2_q5.T, titles[2], axs[2])
+vert_stacked_plot(df_q2_q6.T, titles[3], axs[3]) 
+
+plt.tight_layout()
+plt.show()
+```
